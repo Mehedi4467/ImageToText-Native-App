@@ -4,11 +4,14 @@ import { ActivityIndicator, StyleSheet } from 'react-native';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Camera } from 'expo-camera';
 import { FontAwesome } from '@expo/vector-icons';
+import axios from 'axios';
 export default function App() {
   const [hasPermission, setHasPermission] = useState(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const cameraRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [resultText, setResultText] = useState('');
+
 
   const [flashMode, setFlashMode] = useState(Camera.Constants.FlashMode.off);
   useEffect(() => {
@@ -18,13 +21,7 @@ export default function App() {
     })();
   }, []);
 
-  const takePicture = async () => {
-    if (cameraRef.current) {
-      const { uri } = await cameraRef.current.takePictureAsync();
-      setLoading("Taking Image..")
-      uploadImage(uri);
-    }
-  };
+
 
   const toggleFlash = () => {
     if (flashMode === Camera.Constants.FlashMode.off) {
@@ -36,6 +33,14 @@ export default function App() {
     }
   };
 
+
+  const takePicture = async () => {
+    if (cameraRef.current) {
+      const { uri } = await cameraRef.current.takePictureAsync();
+      setLoading("Taking Image..")
+      uploadImage(uri);
+    }
+  };
 
   const uploadImage = async (uri) => {
     setLoading("Please wait..")
@@ -70,11 +75,64 @@ export default function App() {
     }
   };
 
-  const processImage = async (imageUrl) => {
-    setLoading("Image Analyzing Completed..");
-    setIsCameraOn(false);
-    setLoading(false)
-  };
+  // const processImage = async (imageUrl) => {
+  //   setLoading("Analyzing your image...");
+
+  //   if (imageUrl) {
+  //     try {
+  //       const apiUrl = `https://img-to-text-backend.vercel.app/api/v1/text-translate?token=28wfa255g1aher5y112235awg5542525kjwaglkkphlfj2921hgl&url=${imageUrl}`
+
+  //       const response = await fetch(apiUrl, {
+  //         method: 'GET',
+  //       });
+  //       const responseData = await response.text();
+  //       if (responseData) {
+  //        console.log(responseData)
+         
+  //       }
+  //     } catch (error) {
+  //       console.log('Error:', error);
+  //     }
+  //   } else {
+  //     console.log("this is problem")
+  //  }
+  // };
+  
+
+const MAX_RETRY_COUNT = 4;
+let retryCount = 0;
+
+async function processImage(imageUrl) {
+  setLoading("Analyzing your image...");
+
+  while (retryCount < MAX_RETRY_COUNT) {
+    try {
+      const apiUrl = `https://img-to-text-backend.vercel.app/api/v1/text-translate?token=28wfa255g1aher5y112235awg5542525kjwaglkkphlfj2921hgl&url=${imageUrl}`;
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+      });
+      if (response.ok) {
+        const responseData = await response.text();
+        console.log(responseData);
+        break;
+      } else {
+        console.log(`HTTP Error: ${response.status}`);
+      }
+    } catch (error) {
+      console.log('Error:', error);
+    }
+    retryCount++;
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
+  }
+  if (retryCount === MAX_RETRY_COUNT) {
+    console.log('Max retries reached. Request failed.');
+  }
+
+  setLoading(false);
+}
+
+
+
 
 
 
@@ -92,7 +150,7 @@ export default function App() {
           {
             loading ? <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               <ActivityIndicator size="large" color="white" />
-              <Text style={{ color: 'white' }}>{ loading}</Text>
+              <Text style={{ color: 'white' }}>{loading}</Text>
             </View> : <View
               style={{
                 flex: 0.2,
