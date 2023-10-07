@@ -4,14 +4,15 @@ import { ActivityIndicator, StyleSheet } from 'react-native';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Camera } from 'expo-camera';
 import { FontAwesome } from '@expo/vector-icons';
-import axios from 'axios';
+import * as Clipboard from 'expo-clipboard';
+
 export default function App() {
   const [hasPermission, setHasPermission] = useState(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const cameraRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [resultText, setResultText] = useState('');
-
+  const [buttonColor, setButtonColor] = useState('Copy');
 
   const [flashMode, setFlashMode] = useState(Camera.Constants.FlashMode.off);
   useEffect(() => {
@@ -71,70 +72,60 @@ export default function App() {
 
     } catch (error) {
       console.error('Upload error:', error);
-      setLoading(false)
+      setLoading(false);
+      setResultText("Something went wrong please try again");
+      setIsCameraOn(false);
     }
   };
 
-  // const processImage = async (imageUrl) => {
-  //   setLoading("Analyzing your image...");
 
-  //   if (imageUrl) {
-  //     try {
-  //       const apiUrl = `https://img-to-text-backend.vercel.app/api/v1/text-translate?token=28wfa255g1aher5y112235awg5542525kjwaglkkphlfj2921hgl&url=${imageUrl}`
 
-  //       const response = await fetch(apiUrl, {
-  //         method: 'GET',
-  //       });
-  //       const responseData = await response.text();
-  //       if (responseData) {
-  //        console.log(responseData)
-         
-  //       }
-  //     } catch (error) {
-  //       console.log('Error:', error);
-  //     }
-  //   } else {
-  //     console.log("this is problem")
-  //  }
-  // };
-  
+  const MAX_RETRY_COUNT = 4;
+  let retryCount = 0;
 
-const MAX_RETRY_COUNT = 4;
-let retryCount = 0;
+  async function processImage(imageUrl) {
+    setLoading("Analyzing your image...");
 
-async function processImage(imageUrl) {
-  setLoading("Analyzing your image...");
-
-  while (retryCount < MAX_RETRY_COUNT) {
-    try {
-      const apiUrl = `https://img-to-text-backend.vercel.app/api/v1/text-translate?token=28wfa255g1aher5y112235awg5542525kjwaglkkphlfj2921hgl&url=${imageUrl}`;
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-      });
-      if (response.ok) {
-        const responseData = await response.text();
-        console.log(responseData);
-        break;
-      } else {
-        console.log(`HTTP Error: ${response.status}`);
+    while (retryCount < MAX_RETRY_COUNT) {
+      try {
+        const apiUrl = `https://img-to-text-backend.vercel.app/api/v1/text-translate?token=28wfa255g1aher5y112235awg5542525kjwaglkkphlfj2921hgl&url=${imageUrl}`;
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+        });
+        if (response.ok) {
+          const responseData = await response.json();
+          setResultText(responseData?.inlineSentence);
+          setIsCameraOn(false);
+          break;
+        } else {
+          console.log(`HTTP Error: ${response.status}`);
+        }
+      } catch (error) {
+        console.log('Error:', error);
+        setResultText("Something went wrong please try again");
+        setIsCameraOn(false);
+        setLoading(false);
       }
-    } catch (error) {
-      console.log('Error:', error);
+      retryCount++;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
     }
-    retryCount++;
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
+    if (retryCount === MAX_RETRY_COUNT) {
+      console.log('Max retries reached. Request failed.');
+    }
+
+    setLoading(false);
   }
-  if (retryCount === MAX_RETRY_COUNT) {
-    console.log('Max retries reached. Request failed.');
-  }
-
-  setLoading(false);
-}
 
 
 
 
-
+  const copyText = () => {
+    Clipboard.setString(resultText);
+    setButtonColor('Copyed');
+    setTimeout(() => {
+      setButtonColor('Copy');
+    }, 5000);
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -162,7 +153,10 @@ async function processImage(imageUrl) {
               <View style={{
                 flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: '10%'
               }}>
-                <TouchableOpacity onPress={() => setIsCameraOn(false)}>
+                <TouchableOpacity onPress={() => {
+                  setResultText('');
+                  setIsCameraOn(false);
+                }}>
                   <View style={{ marginTop: 20 }}>
                     <FontAwesome name="times" size={30} color="red" />
                   </View>
@@ -188,17 +182,32 @@ async function processImage(imageUrl) {
             </View>
           }
 
-        </Camera> : <View style={styles.container}>
-          <TouchableOpacity onPress={() => setIsCameraOn(true)} style={styles.button}>
-            <Text style={{ color: 'white' }}>Take a Photo</Text>
-          </TouchableOpacity>
-        </View>
+        </Camera> :
+
+          <View style={styles.container}>
+            <Text style={styles.title}>Bangla OCR</Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity onPress={() => setIsCameraOn(true)} style={styles.button}>
+                <Text style={{ color: 'white' }}>Take a Photo</Text>
+              </TouchableOpacity>
+            </View>
+            {
+              resultText &&
+              <View>
+                <View style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <TouchableOpacity onPress={copyText} style={[styles.copyButton, { backgroundColor: 'blue', marginRight: '200px' }]}>
+                    <Text style={{ color: 'white', }}>{buttonColor}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.resultBox} >
+                  <Text>{resultText}</Text>
+                </View>
+              </View>
+
+            }
+
+          </View>
       }
-
-
-
-
-
     </View>
   );
 }
@@ -208,11 +217,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  title: {
+    marginTop: 100,
+    fontSize: 50
+  },
+  resultBox: {
+    marginBottom: 150,
+    borderWidth: 1,
+    borderColor: 'black',
+    padding: 10,
+    width: '90%',
+    height: 200,
+    marginRight: 10,
+    marginLeft: 10,
+
+  },
+  buttonContainer: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   button: {
     backgroundColor: 'blue',
     padding: 10,
     borderRadius: 5,
+  },
+  copyButton: {
+
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 5,
+    right: 11,
+
+
   },
 });
