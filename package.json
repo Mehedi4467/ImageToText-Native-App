@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^13.0.0",
-    "axios": "^1.5.1",
+    "axios": "^1.6.0",
     "expo": "~49.0.13",
     "expo-camera": "~13.4.4",
     "expo-status-bar": "~1.6.0",
